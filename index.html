@@ -1,0 +1,2468 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DROP'd-like HTML5 Game (Phaser)</title>
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        background: linear-gradient(180deg, #cfefff 0%, #e9f7ff 55%, #ffffff 100%);
+        overflow: hidden;
+      }
+      #thegame {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.js"></script>
+  </head>
+  <body>
+    <div id="thegame"></div>
+
+    <script>
+      // Configuration adapted from the referenced tutorial
+      // https://emanueleferonato.com/2021/01/18/build-a-html5-game-like-dropd-using-phaser-and-arcade-physics-in-less-than-150-lines-of-code/
+
+      let game;
+      const gameOptions = {
+        firstPlatformPosition: 0.28,
+        gameGravity: 1700,
+        platformHorizontalSpeedRange: [150, 250],
+        platformLengthRange: [160, 300],
+        platformVerticalDistanceRange: [150, 250],
+        platformHeight: 35, // Platform thickness for consistent calculations (reduced by half)
+        starIconScale: 0.3, // Size of star icon in top-right corner
+        collectibleStarScale: 0.4, // Size of collectible stars on platforms
+        mushroomScale: 0.15, // Size of mushroom collectibles
+        mushroomAppearanceRate: 0.35, // 35% chance to appear
+        powerUpDuration: 10000, // 10 seconds in milliseconds
+        powerUpSizeMultiplier: 5 // 5x bigger when powered up
+      };
+
+      window.onload = function () {
+        const gameConfig = {
+          type: Phaser.AUTO,
+          transparent: true,
+          parent: "thegame",
+          scale: {
+            mode: Phaser.Scale.FIT,
+            autoCenter: Phaser.Scale.CENTER_BOTH,
+            width: 750,
+            height: 1334
+          },
+          physics: {
+            default: "arcade",
+            arcade: {
+              gravity: { y: gameOptions.gameGravity },
+              debug: false
+            }
+          },
+          scene: [HomeScene, ShopScene, PlayGame, SettingsScene]
+        };
+        game = new Phaser.Game(gameConfig);
+        window.focus();
+      };
+
+      // Home Scene
+      class HomeScene extends Phaser.Scene {
+        constructor() {
+          super("HomeScene");
+        }
+
+        preload() {
+          this.load.setPath("assets");
+          this.load.image("cover", "Cover.png");
+          this.load.image("main", "main.png");
+          this.load.image("genki", "genki.png");
+          this.load.image("dino", "dino.png");
+          this.load.image("star", "star.png");
+          this.load.image("shopbackground", "shopbackground.png");
+          this.load.audio("backgroundMusic", "backgroundmusic.mp3");
+        }
+
+        create() {
+          // Load music setting from localStorage
+          this.musicEnabled = localStorage.getItem('musicEnabled') !== 'false'; // Default to true
+          
+          // Background with cover image
+          const cover = this.add.image(this.game.config.width / 2, this.game.config.height / 2, "cover");
+          cover.setDisplaySize(this.game.config.width, this.game.config.height);
+          
+          // Background music
+          if (this.cache.audio.exists('backgroundMusic')) {
+            this.backgroundMusic = this.sound.add("backgroundMusic", { loop: true, volume: 0.5 });
+            if (this.musicEnabled) {
+              this.backgroundMusic.play();
+            }
+          }
+
+          // Button styling
+          const buttonWidth = 380;
+          const buttonHeight = 100;
+          const centerX = this.game.config.width / 2;
+          const centerY = this.game.config.height / 2 + 280;
+          const buttonSpacing = 40;
+          const cornerRadius = 30; // More rounded
+          const offsetX = 0;
+          const offsetY = 8; // Deeper shadow for lifted effect
+
+          // --- Play Button (Green Theme) ---
+          const playButtonBg = this.add.graphics(); 
+          const playButton = this.add.graphics(); 
+          
+          const playX = centerX - buttonWidth / 2;
+          const playY = centerY - buttonHeight - buttonSpacing / 2;
+          
+          // Play Button Shadow (Dark Green)
+          playButtonBg.fillStyle(0x388e3c, 1); 
+          playButtonBg.fillRoundedRect(
+            playX,
+            playY + offsetY,
+            buttonWidth,
+            buttonHeight,
+            cornerRadius
+          );
+          
+          // Play Button Main (Pastel Green)
+          playButton.fillStyle(0x81c784, 1); 
+          playButton.fillRoundedRect(
+            playX,
+            playY,
+            buttonWidth,
+            buttonHeight,
+            cornerRadius
+          );
+          // Play Button Highlight (Top Shine)
+          playButton.fillStyle(0xa5d6a7, 1);
+          playButton.fillRoundedRect(
+            playX + 10,
+            playY + 6,
+            buttonWidth - 20,
+            buttonHeight / 2,
+            cornerRadius - 5
+          );
+
+          // Play Button Outline
+          playButton.lineStyle(6, 0x2e7d32, 1);
+          playButton.strokeRoundedRect(
+            playX,
+            playY,
+            buttonWidth,
+            buttonHeight,
+            cornerRadius
+          );
+
+          const playText = this.add.text(centerX, playY + buttonHeight / 2 - 4, "PLAY", {
+            fontFamily: "'Baloo 2', cursive",
+            fontSize: "50px",
+            fontWeight: "900",
+            color: "#ffffff",
+            stroke: "#2e7d32",
+            strokeThickness: 10,
+          }).setOrigin(0.5);
+
+          // --- Shop Button (Orange Theme) ---
+          const shopButtonBg = this.add.graphics(); 
+          const shopButton = this.add.graphics(); 
+          
+          const shopX = centerX - buttonWidth / 2;
+          const shopY = centerY + buttonSpacing / 2;
+          
+          // Shop Button Shadow (Dark Orange)
+          shopButtonBg.fillStyle(0xe65100, 1); 
+          shopButtonBg.fillRoundedRect(
+            shopX,
+            shopY + offsetY,
+            buttonWidth,
+            buttonHeight,
+            cornerRadius
+          );
+          
+          // Shop Button Main (Pastel Orange)
+          shopButton.fillStyle(0xffb74d, 1); 
+          shopButton.fillRoundedRect(
+            shopX,
+            shopY,
+            buttonWidth,
+            buttonHeight,
+            cornerRadius
+          );
+          // Shop Button Highlight (Top Shine)
+          shopButton.fillStyle(0xffcc80, 1);
+          shopButton.fillRoundedRect(
+            shopX + 10,
+            shopY + 6,
+            buttonWidth - 20,
+            buttonHeight / 2,
+            cornerRadius - 5
+          );
+          
+          // Shop Button Outline
+          shopButton.lineStyle(6, 0xbf360c, 1);
+          shopButton.strokeRoundedRect(
+            shopX,
+            shopY,
+            buttonWidth,
+            buttonHeight,
+            cornerRadius
+          );
+
+          const shopText = this.add.text(centerX, shopY + buttonHeight / 2 - 4, "SHOP", {
+            fontFamily: "'Baloo 2', cursive",
+            fontSize: "50px",
+            fontWeight: "900",
+            color: "#ffffff",
+            stroke: "#bf360c",
+            strokeThickness: 10,
+          }).setOrigin(0.5);
+
+          // Make buttons interactive
+          const playZone = this.add.zone(
+            centerX,
+            playY + buttonHeight / 2,
+            buttonWidth,
+            buttonHeight
+          ).setInteractive({ useHandCursor: true });
+
+          // Play button hover effects
+          playZone.on('pointerover', () => {
+            playButton.clear();
+            // Lighter fill on hover
+            playButton.fillStyle(0x66bb6a, 1); 
+            playButton.fillRoundedRect(playX, playY - 2, buttonWidth, buttonHeight, cornerRadius);
+            // Outline
+            playButton.lineStyle(6, 0x2e7d32, 1);
+            playButton.strokeRoundedRect(playX, playY - 2, buttonWidth, buttonHeight, cornerRadius);
+            
+            playText.y = playY + buttonHeight / 2 - 6;
+            playText.setScale(1.05);
+          });
+
+          playZone.on('pointerout', () => {
+            playButton.clear();
+            // Original Pastel Green
+            playButton.fillStyle(0x81c784, 1); 
+            playButton.fillRoundedRect(playX, playY, buttonWidth, buttonHeight, cornerRadius);
+            // Highlight
+            playButton.fillStyle(0xa5d6a7, 1);
+            playButton.fillRoundedRect(playX + 10, playY + 6, buttonWidth - 20, buttonHeight / 2, cornerRadius - 5);
+            // Outline
+            playButton.lineStyle(6, 0x2e7d32, 1);
+            playButton.strokeRoundedRect(playX, playY, buttonWidth, buttonHeight, cornerRadius);
+            
+            playText.y = playY + buttonHeight / 2 - 4;
+            playText.setScale(1);
+          });
+
+          playZone.on('pointerdown', () => {
+            this.scene.start("PlayGame");
+          });
+
+          const shopZone = this.add.zone(
+            centerX,
+            shopY + buttonHeight / 2,
+            buttonWidth,
+            buttonHeight
+          ).setInteractive({ useHandCursor: true });
+
+          // Shop button hover effects
+          shopZone.on('pointerover', () => {
+            shopButton.clear();
+            // Lighter orange on hover
+            shopButton.fillStyle(0xffa726, 1); 
+            shopButton.fillRoundedRect(shopX, shopY - 2, buttonWidth, buttonHeight, cornerRadius);
+            // Outline
+            shopButton.lineStyle(6, 0xbf360c, 1);
+            shopButton.strokeRoundedRect(shopX, shopY - 2, buttonWidth, buttonHeight, cornerRadius);
+            
+            shopText.y = shopY + buttonHeight / 2 - 6;
+            shopText.setScale(1.05);
+          });
+
+          shopZone.on('pointerout', () => {
+            shopButton.clear();
+            // Original Pastel Orange
+            shopButton.fillStyle(0xffb74d, 1); 
+            shopButton.fillRoundedRect(shopX, shopY, buttonWidth, buttonHeight, cornerRadius);
+            // Highlight
+            shopButton.fillStyle(0xffcc80, 1);
+            shopButton.fillRoundedRect(shopX + 10, shopY + 6, buttonWidth - 20, buttonHeight / 2, cornerRadius - 5);
+            // Outline
+            shopButton.lineStyle(6, 0xbf360c, 1);
+            shopButton.strokeRoundedRect(shopX, shopY, buttonWidth, buttonHeight, cornerRadius);
+            
+            shopText.y = shopY + buttonHeight / 2 - 4;
+            shopText.setScale(1);
+          });
+
+          shopZone.on('pointerdown', () => {
+            this.scene.launch("ShopScene");
+            this.scene.pause();
+          });
+
+          // --- Sound Button (Blue Theme) ---
+          const soundButtonBg = this.add.graphics(); 
+          const soundButton = this.add.graphics(); 
+          
+          const soundX = centerX - buttonWidth / 2;
+          const soundY = shopY + buttonHeight + buttonSpacing;
+          
+          // Sound Button Shadow (Dark Blue/Gray based on state)
+          const shadowColor = this.musicEnabled ? 0x1976d2 : 0x616161;
+          soundButtonBg.fillStyle(shadowColor, 1); 
+          soundButtonBg.fillRoundedRect(
+            soundX,
+            soundY + offsetY,
+            buttonWidth,
+            buttonHeight,
+            cornerRadius
+          );
+
+          const soundText = this.add.text(centerX, soundY + buttonHeight / 2 - 4, this.musicEnabled ? "SOUND: ON" : "SOUND: OFF", {
+            fontFamily: "'Baloo 2', cursive",
+            fontSize: "50px",
+            fontWeight: "900",
+            color: "#ffffff",
+            stroke: this.musicEnabled ? "#1565c0" : "#424242",
+            strokeThickness: 10,
+          }).setOrigin(0.5);
+
+          // Make sound button interactive
+          const soundZone = this.add.zone(
+            centerX,
+            soundY + buttonHeight / 2,
+            buttonWidth,
+            buttonHeight
+          ).setInteractive({ useHandCursor: true });
+
+          // Function to update sound button appearance
+          const updateSoundButton = () => {
+            soundButtonBg.clear();
+            soundButton.clear();
+            
+            // Update shadow
+            const shadowColor = this.musicEnabled ? 0x1976d2 : 0x616161;
+            soundButtonBg.fillStyle(shadowColor, 1);
+            soundButtonBg.fillRoundedRect(
+              soundX,
+              soundY + offsetY,
+              buttonWidth,
+              buttonHeight,
+              cornerRadius
+            );
+            
+            if (this.musicEnabled) {
+              soundButton.fillStyle(0x64b5f6, 1);
+              soundButton.fillRoundedRect(soundX, soundY, buttonWidth, buttonHeight, cornerRadius);
+              soundButton.fillStyle(0x90caf9, 1);
+              soundButton.fillRoundedRect(soundX + 10, soundY + 6, buttonWidth - 20, buttonHeight / 2, cornerRadius - 5);
+              soundButton.lineStyle(6, 0x1565c0, 1);
+              soundText.setStroke("#1565c0", 10);
+            } else {
+              soundButton.fillStyle(0xbdbdbd, 1);
+              soundButton.fillRoundedRect(soundX, soundY, buttonWidth, buttonHeight, cornerRadius);
+              soundButton.lineStyle(6, 0x424242, 1);
+              soundText.setStroke("#424242", 10);
+            }
+            soundButton.strokeRoundedRect(soundX, soundY, buttonWidth, buttonHeight, cornerRadius);
+            soundText.setText(this.musicEnabled ? "SOUND: ON" : "SOUND: OFF");
+          };
+
+          // Sound button hover effects
+          soundZone.on('pointerover', () => {
+            soundButton.clear();
+            if (this.musicEnabled) {
+              // Lighter blue on hover
+              soundButton.fillStyle(0x42a5f5, 1); 
+              soundButton.fillRoundedRect(soundX, soundY - 2, buttonWidth, buttonHeight, cornerRadius);
+              soundButton.lineStyle(6, 0x1565c0, 1);
+            } else {
+              // Gray on hover when disabled
+              soundButton.fillStyle(0x9e9e9e, 1);
+              soundButton.fillRoundedRect(soundX, soundY - 2, buttonWidth, buttonHeight, cornerRadius);
+              soundButton.lineStyle(6, 0x424242, 1);
+            }
+            soundButton.strokeRoundedRect(soundX, soundY - 2, buttonWidth, buttonHeight, cornerRadius);
+            
+            soundText.y = soundY + buttonHeight / 2 - 6;
+            soundText.setScale(1.05);
+          });
+
+          soundZone.on('pointerout', () => {
+            updateSoundButton();
+            soundText.y = soundY + buttonHeight / 2 - 4;
+            soundText.setScale(1);
+          });
+          
+          // Initialize button appearance
+          updateSoundButton();
+
+          soundZone.on('pointerdown', () => {
+            this.musicEnabled = !this.musicEnabled;
+            localStorage.setItem('musicEnabled', String(this.musicEnabled));
+            
+            // Toggle background music
+            if (this.backgroundMusic) {
+              if (this.musicEnabled) {
+                this.backgroundMusic.play();
+              } else {
+                this.backgroundMusic.stop();
+              }
+            }
+            
+            // Update button appearance
+            updateSoundButton();
+          });
+        }
+      }
+
+      // Shop Scene (overlay)
+      class ShopScene extends Phaser.Scene {
+        constructor() {
+          super("ShopScene");
+        }
+
+        create() {
+          // Semi-transparent background overlay
+          const overlay = this.add.graphics();
+          overlay.fillStyle(0x000000, 0.7);
+          overlay.fillRect(0, 0, this.game.config.width, this.game.config.height);
+
+          // Shop popup container
+          const popupWidth = 600;
+          const popupHeight = 700;
+          const centerX = this.game.config.width / 2;
+          const centerY = this.game.config.height / 2;
+
+          // Shop background image
+          const popup = this.add.image(centerX, centerY, "shopbackground");
+          popup.setDisplaySize(popupWidth, popupHeight);
+
+          // Title - removed as requested
+          // this.add.text(centerX, centerY - popupHeight / 2 + 50, "SHOP", { ... });
+
+          // Load data
+          this.starCount = parseInt(localStorage.getItem('starCount') || '0', 10);
+          this.ownedSkins = JSON.parse(localStorage.getItem('ownedSkins') || '["main"]');
+          this.selectedSkin = localStorage.getItem('selectedSkin') || 'main';
+
+          // Star count display (Moved slightly up)
+          const starIcon = this.add.image(centerX - 60, centerY - popupHeight / 2 + 70, "star")
+            .setScale(0.4);
+          this.starCountText = this.add.text(centerX + 20, centerY - popupHeight / 2 + 70, String(this.starCount), {
+            fontFamily: "'Baloo 2', Arial, Helvetica, sans-serif",
+            fontSize: "65px",
+            color: "#ffd54f",
+            stroke: "#ffb300",
+            strokeThickness: 6,
+          }).setOrigin(0.5);
+
+          // Skin items
+          this.skins = [
+            { key: 'main', name: 'MAKI', cost: 0 },
+            { key: 'genki', name: 'Genki', cost: 30 },
+            { key: 'dino', name: 'Dino', cost: 80 }
+          ];
+
+          this.currentSkinIndex = 0;
+          this.skinDisplaySize = 280; // Enlarged size for better visibility
+
+          // Character display area (center)
+          const charDisplayY = centerY - 80;
+          
+          // Create character image (will be updated on swipe)
+          this.characterImage = this.add.image(centerX, charDisplayY, this.skins[0].key);
+          this.characterImage.setDisplaySize(this.skinDisplaySize, this.skinDisplaySize);
+
+          // Character name
+          this.characterNameText = this.add.text(centerX, charDisplayY + 200, this.skins[0].name.toUpperCase(), {
+            fontFamily: "'Baloo 2', cursive",
+            fontSize: "56px",
+            color: "#ff8c00",
+            fontWeight: "bold",
+          }).setOrigin(0.5);
+
+          // Navigation arrows
+          const arrowSize = 50;
+          const arrowY = charDisplayY;
+          const arrowDist = 220;
+          
+          // Left arrow (pointing left)
+          this.leftArrow = this.add.graphics();
+          this.leftArrow.fillStyle(0xff8c00, 1);
+          this.leftArrow.fillTriangle(
+            centerX - arrowDist - arrowSize, arrowY, // Tip
+            centerX - arrowDist, arrowY - arrowSize / 1.5, // Top right
+            centerX - arrowDist, arrowY + arrowSize / 1.5  // Bottom right
+          );
+          this.leftArrow.setInteractive(new Phaser.Geom.Rectangle(
+            centerX - arrowDist - arrowSize, arrowY - arrowSize,
+            arrowSize * 2, arrowSize * 2
+          ), Phaser.Geom.Rectangle.Contains);
+          this.leftArrow.on('pointerdown', () => this.previousSkin());
+
+          // Right arrow (pointing right)
+          this.rightArrow = this.add.graphics();
+          this.rightArrow.fillStyle(0xff8c00, 1);
+          this.rightArrow.fillTriangle(
+            centerX + arrowDist + arrowSize, arrowY, // Tip
+            centerX + arrowDist, arrowY - arrowSize / 1.5, // Top left
+            centerX + arrowDist, arrowY + arrowSize / 1.5  // Bottom left
+          );
+          this.rightArrow.setInteractive(new Phaser.Geom.Rectangle(
+            centerX + arrowDist, arrowY - arrowSize,
+            arrowSize * 2, arrowSize * 2
+          ), Phaser.Geom.Rectangle.Contains);
+          this.rightArrow.on('pointerdown', () => this.nextSkin());
+
+          // Purchase/Select button styling (New Style)
+          const buttonY = centerY + 220; // Moved down 
+          const buttonWidth = 220; // Same size as close button
+          const buttonHeight = 70;
+          const cornerRadius = 15;
+          const buttonOffsetX = 4;
+          const buttonOffsetY = 4;
+
+          this.buttonBg = this.add.graphics();
+          this.button = this.add.graphics();
+          this.buttonText = this.add.text(centerX, buttonY, "", {
+            fontFamily: "'Baloo 2', cursive",
+            fontSize: "44px",
+            fontWeight: "bold",
+            color: "#ffffff",
+            stroke: "#cc6600", // Changed to orange stroke to match theme
+            strokeThickness: 4,
+          }).setOrigin(0.5);
+
+          this.buttonZone = this.add.zone(centerX, buttonY, buttonWidth, buttonHeight).setInteractive({ useHandCursor: true });
+
+          // Swipe detection
+          this.input.on('pointerdown', (pointer) => {
+            this.swipeStartX = pointer.x;
+          });
+
+          this.input.on('pointerup', (pointer) => {
+            if (this.swipeStartX !== undefined) {
+              const swipeDistance = pointer.x - this.swipeStartX;
+              if (Math.abs(swipeDistance) > 50) {
+                if (swipeDistance > 0) {
+                  this.previousSkin();
+                } else {
+                  this.nextSkin();
+                }
+              }
+              this.swipeStartX = undefined;
+            }
+          });
+
+          // Update display for first skin
+          this.updateSkinDisplay();
+
+          // Close button at bottom (Matching style) - positioned outside the popup
+          const closeY = centerY + popupHeight / 2 + 50;
+          const closeBtnWidth = 220;
+          const closeBtnHeight = 70;
+          const closeBtnRadius = 15;
+          
+          const closeBtnBg = this.add.graphics(); 
+          const closeBtn = this.add.graphics(); 
+          
+          const closeBtnX = centerX - closeBtnWidth / 2;
+          const closeBtnY = closeY - closeBtnHeight / 2;
+          
+          // Darker background layer (offset behind)
+          closeBtnBg.fillStyle(0xe65100, 1); // Dark orange
+          closeBtnBg.fillRoundedRect(
+            closeBtnX + buttonOffsetX,
+            closeBtnY + buttonOffsetY,
+            closeBtnWidth,
+            closeBtnHeight,
+            closeBtnRadius
+          );
+          
+          // Main button fill (Orange)
+          closeBtn.fillStyle(0xffb74d, 1);
+          closeBtn.fillRoundedRect(
+            closeBtnX,
+            closeBtnY,
+            closeBtnWidth,
+            closeBtnHeight,
+            closeBtnRadius
+          );
+          // Highlight
+          closeBtn.fillStyle(0xffcc80, 1);
+          closeBtn.fillRoundedRect(closeBtnX + 10, closeBtnY + 6, closeBtnWidth - 20, closeBtnHeight / 2, closeBtnRadius - 5);
+          // Outline
+          closeBtn.lineStyle(6, 0xbf360c, 1);
+          closeBtn.strokeRoundedRect(closeBtnX, closeBtnY, closeBtnWidth, closeBtnHeight, closeBtnRadius);
+
+          const closeText = this.add.text(centerX, closeY, "CLOSE", {
+            fontFamily: "'Baloo 2', cursive",
+            fontSize: "44px",
+            fontWeight: "bold",
+            color: "#ffffff",
+            stroke: "#bf360c",
+            strokeThickness: 6,
+          }).setOrigin(0.5);
+
+          const closeZone = this.add.zone(centerX, closeY, closeBtnWidth, closeBtnHeight).setInteractive({ useHandCursor: true });
+          
+          // Close button hover effects
+          closeZone.on('pointerover', () => {
+            closeBtn.clear();
+            // Lighter orange
+            closeBtn.fillStyle(0xffa726, 1); 
+            closeBtn.fillRoundedRect(closeBtnX, closeBtnY - 2, closeBtnWidth, closeBtnHeight, closeBtnRadius);
+            // Outline
+            closeBtn.lineStyle(6, 0xbf360c, 1);
+            closeBtn.strokeRoundedRect(closeBtnX, closeBtnY - 2, closeBtnWidth, closeBtnHeight, closeBtnRadius);
+            
+            closeText.y = closeY - 2;
+            closeText.setScale(1.05);
+          });
+
+          closeZone.on('pointerout', () => {
+            closeBtn.clear();
+            // Original Orange
+            closeBtn.fillStyle(0xffb74d, 1); 
+            closeBtn.fillRoundedRect(closeBtnX, closeBtnY, closeBtnWidth, closeBtnHeight, closeBtnRadius);
+            // Highlight
+            closeBtn.fillStyle(0xffcc80, 1);
+            closeBtn.fillRoundedRect(closeBtnX + 10, closeBtnY + 6, closeBtnWidth - 20, closeBtnHeight / 2, closeBtnRadius - 5);
+            // Outline
+            closeBtn.lineStyle(6, 0xbf360c, 1);
+            closeBtn.strokeRoundedRect(closeBtnX, closeBtnY, closeBtnWidth, closeBtnHeight, closeBtnRadius);
+            
+            closeText.y = closeY;
+            closeText.setScale(1);
+          });
+
+          closeZone.on('pointerdown', () => {
+            this.scene.stop();
+            this.scene.resume("HomeScene");
+          });
+        }
+
+        nextSkin() {
+          this.currentSkinIndex = (this.currentSkinIndex + 1) % this.skins.length;
+          this.updateSkinDisplay();
+        }
+
+        previousSkin() {
+          this.currentSkinIndex = (this.currentSkinIndex - 1 + this.skins.length) % this.skins.length;
+          this.updateSkinDisplay();
+        }
+
+        updateSkinDisplay() {
+          const skin = this.skins[this.currentSkinIndex];
+          
+          const centerX = this.game.config.width / 2;
+          const centerY = this.game.config.height / 2;
+          const buttonY = centerY + 220; // Aligned with create method (moved down)
+          const buttonWidth = 220; // Same size as close button
+          const buttonHeight = 70;
+          const buttonRadius = 15;
+          const buttonOffsetX = 4;
+          const buttonOffsetY = 4;
+
+          // Update character image
+          this.characterImage.setTexture(skin.key);
+          this.characterImage.setDisplaySize(this.skinDisplaySize, this.skinDisplaySize);
+
+          // Update character name
+          this.characterNameText.setText(skin.name.toUpperCase());
+
+          // Update button
+          this.buttonBg.clear();
+          this.button.clear();
+
+          const owned = this.ownedSkins.includes(skin.key);
+          const isSelected = this.selectedSkin === skin.key;
+          const canBuy = this.starCount >= skin.cost;
+
+          // Button Rendering Helper
+          const drawButton = (bgColor, fillColor, strokeColor, text, isGreyed = false) => {
+            // Shadow
+            this.buttonBg.fillStyle(bgColor, 1);
+            this.buttonBg.fillRoundedRect(
+              centerX - buttonWidth / 2 + buttonOffsetX,
+              buttonY - buttonHeight / 2 + buttonOffsetY,
+              buttonWidth,
+              buttonHeight,
+              buttonRadius
+            );
+            
+            // Main Fill
+            this.button.fillStyle(fillColor, 1);
+            this.button.fillRoundedRect(
+              centerX - buttonWidth / 2,
+              buttonY - buttonHeight / 2,
+              buttonWidth,
+              buttonHeight,
+              buttonRadius
+            );
+            
+            // Highlight
+            if (!isGreyed) {
+              this.button.fillStyle(0xffffff, 0.3);
+              this.button.fillRoundedRect(
+                centerX - buttonWidth / 2 + 10,
+                buttonY - buttonHeight / 2 + 6,
+                buttonWidth - 20,
+                buttonHeight / 2,
+                buttonRadius - 5
+              );
+            }
+            
+            // Outline
+            this.button.lineStyle(6, strokeColor, 1);
+            this.button.strokeRoundedRect(
+              centerX - buttonWidth / 2,
+              buttonY - buttonHeight / 2,
+              buttonWidth,
+              buttonHeight,
+              buttonRadius
+            );
+            
+            this.buttonText.setText(text);
+            this.buttonText.setStroke(strokeColor, 10);
+          };
+
+          if (owned) {
+            if (isSelected) {
+              // Selected (Green Theme)
+              drawButton(0x388e3c, 0x81c784, 0x2e7d32, "SELECTED");
+              this.buttonZone.removeAllListeners();
+            } else {
+              // Select (Green Theme)
+              drawButton(0x388e3c, 0x81c784, 0x2e7d32, "SELECT");
+              this.buttonZone.removeAllListeners();
+              
+              this.buttonZone.on('pointerdown', () => {
+                localStorage.setItem('selectedSkin', skin.key);
+                this.selectedSkin = skin.key;
+                this.updateSkinDisplay();
+              });
+            }
+          } else {
+            // Purchase (Orange Theme or Grey if unaffordable)
+            if (canBuy) {
+              drawButton(0xe65100, 0xffb74d, 0xbf360c, `${skin.cost} ★`);
+              
+              this.buttonZone.removeAllListeners();
+              this.buttonZone.on('pointerdown', () => {
+                this.starCount -= skin.cost;
+                this.ownedSkins.push(skin.key);
+                localStorage.setItem('starCount', String(this.starCount));
+                localStorage.setItem('ownedSkins', JSON.stringify(this.ownedSkins));
+                localStorage.setItem('selectedSkin', skin.key);
+                this.selectedSkin = skin.key;
+                this.starCountText.setText(String(this.starCount));
+                this.updateSkinDisplay();
+              });
+            } else {
+              // Greyed out (Not enough stars)
+              drawButton(0x616161, 0xbdbdbd, 0x424242, `${skin.cost} ★`, true);
+              this.buttonZone.removeAllListeners();
+            }
+          }
+        }
+      }
+
+      // Settings Scene (overlay)
+      class SettingsScene extends Phaser.Scene {
+        constructor() {
+          super("SettingsScene");
+        }
+
+        create() {
+          // Semi-transparent background overlay
+          const overlay = this.add.graphics();
+          overlay.fillStyle(0x000000, 0.7);
+          overlay.fillRect(0, 0, this.game.config.width, this.game.config.height);
+
+          // Settings popup container
+          const popupWidth = 500;
+          const popupHeight = 400;
+          const centerX = this.game.config.width / 2;
+          const centerY = this.game.config.height / 2;
+
+          // White popup background
+          const popup = this.add.graphics();
+          popup.fillStyle(0xffffff, 1);
+          popup.fillRoundedRect(
+            centerX - popupWidth / 2,
+            centerY - popupHeight / 2,
+            popupWidth,
+            popupHeight,
+            20
+          );
+          popup.lineStyle(8, 0xff9800, 1);
+          popup.strokeRoundedRect(
+            centerX - popupWidth / 2,
+            centerY - popupHeight / 2,
+            popupWidth,
+            popupHeight,
+            20
+          );
+
+          // Title
+          this.add.text(centerX, centerY - popupHeight / 2 + 50, "SETTINGS", {
+            fontFamily: "'Baloo 2', cursive",
+            fontSize: "64px",
+            color: "#ff8c00",
+            stroke: "#4caf50",
+            strokeThickness: 8,
+          }).setOrigin(0.5);
+
+          // Load music setting from localStorage
+          this.musicEnabled = localStorage.getItem('musicEnabled') !== 'false'; // Default to true
+
+          // Button styling
+          const buttonWidth = 300;
+          const buttonHeight = 80;
+          const buttonRadius = 20;
+          const buttonOffsetX = 4;
+          const buttonOffsetY = 4;
+          const buttonSpacing = 30;
+
+          // Home button
+          const homeButtonY = centerY - 30;
+          const homeButtonBg = this.add.graphics();
+          const homeButton = this.add.graphics();
+          
+          const homeButtonX = centerX - buttonWidth / 2;
+          const homeButtonYPos = homeButtonY - buttonHeight / 2;
+          
+          // Shadow
+          homeButtonBg.fillStyle(0x388e3c, 1);
+          homeButtonBg.fillRoundedRect(
+            homeButtonX + buttonOffsetX,
+            homeButtonYPos + buttonOffsetY,
+            buttonWidth,
+            buttonHeight,
+            buttonRadius
+          );
+          
+          // Main fill (Green)
+          homeButton.fillStyle(0x81c784, 1);
+          homeButton.fillRoundedRect(
+            homeButtonX,
+            homeButtonYPos,
+            buttonWidth,
+            buttonHeight,
+            buttonRadius
+          );
+          
+          // Highlight
+          homeButton.fillStyle(0xa5d6a7, 1);
+          homeButton.fillRoundedRect(
+            homeButtonX + 10,
+            homeButtonYPos + 6,
+            buttonWidth - 20,
+            buttonHeight / 2,
+            buttonRadius - 5
+          );
+          
+          // Outline
+          homeButton.lineStyle(6, 0x2e7d32, 1);
+          homeButton.strokeRoundedRect(
+            homeButtonX,
+            homeButtonYPos,
+            buttonWidth,
+            buttonHeight,
+            buttonRadius
+          );
+
+          const homeText = this.add.text(centerX, homeButtonY, "HOME", {
+            fontFamily: "'Baloo 2', cursive",
+            fontSize: "52px",
+            fontWeight: "900",
+            color: "#ffffff",
+            stroke: "#2e7d32",
+            strokeThickness: 10,
+          }).setOrigin(0.5);
+
+          const homeZone = this.add.zone(centerX, homeButtonY, buttonWidth, buttonHeight)
+            .setInteractive({ useHandCursor: true });
+
+          homeZone.on('pointerover', () => {
+            homeButton.clear();
+            homeButton.fillStyle(0x66bb6a, 1);
+            homeButton.fillRoundedRect(homeButtonX, homeButtonYPos - 2, buttonWidth, buttonHeight, buttonRadius);
+            homeButton.lineStyle(6, 0x2e7d32, 1);
+            homeButton.strokeRoundedRect(homeButtonX, homeButtonYPos - 2, buttonWidth, buttonHeight, buttonRadius);
+            homeText.y = homeButtonY - 2;
+            homeText.setScale(1.05);
+          });
+
+          homeZone.on('pointerout', () => {
+            homeButton.clear();
+            homeButton.fillStyle(0x81c784, 1);
+            homeButton.fillRoundedRect(homeButtonX, homeButtonYPos, buttonWidth, buttonHeight, buttonRadius);
+            homeButton.fillStyle(0xa5d6a7, 1);
+            homeButton.fillRoundedRect(homeButtonX + 10, homeButtonYPos + 6, buttonWidth - 20, buttonHeight / 2, buttonRadius - 5);
+            homeButton.lineStyle(6, 0x2e7d32, 1);
+            homeButton.strokeRoundedRect(homeButtonX, homeButtonYPos, buttonWidth, buttonHeight, buttonRadius);
+            homeText.y = homeButtonY;
+            homeText.setScale(1);
+          });
+
+          homeZone.on('pointerdown', () => {
+            this.scene.stop();
+            this.scene.stop("PlayGame");
+            this.scene.start("HomeScene");
+          });
+
+          // Music toggle button
+          const musicButtonY = centerY + 80;
+          const musicButtonBg = this.add.graphics();
+          const musicButton = this.add.graphics();
+          
+          const musicButtonX = centerX - buttonWidth / 2;
+          const musicButtonYPos = musicButtonY - buttonHeight / 2;
+          
+          this.updateMusicButton = () => {
+            musicButtonBg.clear();
+            musicButton.clear();
+            
+            const bgColor = this.musicEnabled ? 0x388e3c : 0x616161;
+            const fillColor = this.musicEnabled ? 0x81c784 : 0xbdbdbd;
+            const strokeColor = this.musicEnabled ? 0x2e7d32 : 0x424242;
+            
+            // Shadow
+            musicButtonBg.fillStyle(bgColor, 1);
+            musicButtonBg.fillRoundedRect(
+              musicButtonX + buttonOffsetX,
+              musicButtonYPos + buttonOffsetY,
+              buttonWidth,
+              buttonHeight,
+              buttonRadius
+            );
+            
+            // Main fill
+            musicButton.fillStyle(fillColor, 1);
+            musicButton.fillRoundedRect(
+              musicButtonX,
+              musicButtonYPos,
+              buttonWidth,
+              buttonHeight,
+              buttonRadius
+            );
+            
+            // Highlight (only if enabled)
+            if (this.musicEnabled) {
+              musicButton.fillStyle(0xa5d6a7, 1);
+              musicButton.fillRoundedRect(
+                musicButtonX + 10,
+                musicButtonYPos + 6,
+                buttonWidth - 20,
+                buttonHeight / 2,
+                buttonRadius - 5
+              );
+            }
+            
+            // Outline
+            musicButton.lineStyle(6, strokeColor, 1);
+            musicButton.strokeRoundedRect(
+              musicButtonX,
+              musicButtonYPos,
+              buttonWidth,
+              buttonHeight,
+              buttonRadius
+            );
+            
+            musicText.setText(this.musicEnabled ? "MUSIC: ON" : "MUSIC: OFF");
+            musicText.setStroke(strokeColor, 10);
+          };
+          
+          this.updateMusicButton();
+
+          const musicText = this.add.text(centerX, musicButtonY, this.musicEnabled ? "MUSIC: ON" : "MUSIC: OFF", {
+            fontFamily: "'Baloo 2', cursive",
+            fontSize: "48px",
+            fontWeight: "900",
+            color: "#ffffff",
+            stroke: this.musicEnabled ? "#2e7d32" : "#424242",
+            strokeThickness: 10,
+          }).setOrigin(0.5);
+
+          const musicZone = this.add.zone(centerX, musicButtonY, buttonWidth, buttonHeight)
+            .setInteractive({ useHandCursor: true });
+
+          musicZone.on('pointerdown', () => {
+            this.musicEnabled = !this.musicEnabled;
+            localStorage.setItem('musicEnabled', String(this.musicEnabled));
+            
+            // Toggle all sounds
+            if (this.scene.get("PlayGame").sound) {
+              if (this.musicEnabled) {
+                this.scene.get("PlayGame").sound.resumeAll();
+              } else {
+                this.scene.get("PlayGame").sound.pauseAll();
+              }
+            }
+            
+            this.updateMusicButton();
+            musicText.setText(this.musicEnabled ? "MUSIC: ON" : "MUSIC: OFF");
+            musicText.setStroke(this.musicEnabled ? "#2e7d32" : "#424242", 10);
+          });
+
+          // Close button (X in top right)
+          const closeBtnSize = 50;
+          const closeBtnX = centerX + popupWidth / 2 - 40;
+          const closeBtnY = centerY - popupHeight / 2 + 30;
+          
+          const closeBtn = this.add.graphics();
+          closeBtn.fillStyle(0xff5252, 1);
+          closeBtn.fillCircle(closeBtnX, closeBtnY, closeBtnSize / 2);
+          closeBtn.lineStyle(4, 0xffffff, 1);
+          closeBtn.strokeCircle(closeBtnX, closeBtnY, closeBtnSize / 2);
+          
+          // X mark
+          closeBtn.lineStyle(4, 0xffffff, 1);
+          closeBtn.moveTo(closeBtnX - 15, closeBtnY - 15);
+          closeBtn.lineTo(closeBtnX + 15, closeBtnY + 15);
+          closeBtn.moveTo(closeBtnX + 15, closeBtnY - 15);
+          closeBtn.lineTo(closeBtnX - 15, closeBtnY + 15);
+          closeBtn.strokePath();
+
+          const closeZone = this.add.zone(closeBtnX, closeBtnY, closeBtnSize, closeBtnSize)
+            .setInteractive({ useHandCursor: true });
+
+          closeZone.on('pointerdown', () => {
+            this.scene.stop();
+            this.scene.resume("PlayGame");
+          });
+        }
+      }
+
+      class PlayGame extends Phaser.Scene {
+        constructor() {
+          super("PlayGame");
+        }
+
+        preload() {
+          // Generate fallback hero texture first (white circle with blue outline)
+          const fallback = this.add.graphics();
+          fallback.fillStyle(0xffffff, 1);
+          fallback.fillCircle(32, 32, 28);
+          fallback.lineStyle(4, 0x1773ff, 1);
+          fallback.strokeCircle(32, 32, 28);
+          fallback.generateTexture("hero_fallback", 64, 64);
+          fallback.clear();
+
+          // Load assets from assets folder
+          this.load.setPath("assets");
+          
+          // Handle load errors gracefully (CORS errors when opening file:// directly)
+          this.load.on('fileerror', (file) => {
+            console.warn(`Could not load ${file.url}. Make sure you're running via a web server (http://localhost:8080/index.html)`);
+          });
+          
+          // Load all character skin assets
+          this.load.image("main", "main.png");
+          this.load.image("genki", "genki.png");
+          this.load.image("dino", "dino.png");
+
+          // Generate platform and star textures
+          const g = this.add.graphics();
+
+          // platform: styled slab (white base so we can tint to green/yellow)
+          const platformWidth = 300;
+          const platformHeight = gameOptions.platformHeight;
+          const radius = 10;
+
+          // base
+          g.fillStyle(0xffffff, 1);
+          g.fillRoundedRect(0, 0, platformWidth, platformHeight, radius);
+
+          // border
+          g.lineStyle(6, 0xffffff, 1);
+          g.strokeRoundedRect(0, 0, platformWidth, platformHeight, radius);
+
+          // inner decorative tiles (varying alpha so tint produces darker/lighter greens)
+          g.fillStyle(0xffffff, 0.7);
+          g.fillRoundedRect(12, platformHeight - 14, platformWidth * 0.45, 10, 4);
+          g.fillRoundedRect(platformWidth - 80, platformHeight - 14, 68, 10, 4);
+
+          g.fillStyle(0xffffff, 0.55);
+          g.fillRoundedRect(18, 10, 46, 12, 3);
+          g.fillRoundedRect(platformWidth * 0.35, 8, 58, 14, 3);
+          g.fillRoundedRect(platformWidth - 120, 12, 38, 12, 3);
+
+          g.fillStyle(0xffffff, 0.35);
+          g.fillRoundedRect(90, platformHeight * 0.45, 62, 12, 3);
+          g.fillRoundedRect(platformWidth - 150, platformHeight * 0.45, 48, 12, 3);
+
+          g.generateTexture("platform", platformWidth, platformHeight);
+          g.clear();
+
+          // load platform and cloud assets (static images)
+          this.load.image("platforma", "platforma.png");
+          this.load.image("platformb", "platformb.png");
+          // load cloud asset (static clouds)
+          this.load.image("cloud_img", "cloud.png");
+          // load crown asset
+          this.load.image("crown", "crown.png");
+          // load star asset
+          this.load.image("star", "star.png");
+          // load mushroom asset
+          this.load.image("mushroom", "mushroom.png");
+          // load sound effects
+          this.load.audio("popSound", "popsound.mp3");
+          this.load.audio("collectStarSound", "collect_star.mp3");
+          this.load.audio("risingSound", "rising.mp3");
+        }
+
+        create() {
+          // Load music setting
+          this.musicEnabled = localStorage.getItem('musicEnabled') !== 'false'; // Default to true
+          
+          // Reset game state on scene start
+          this.isGameOver = false;
+          this.started = false;
+          this.stickPlatform = null;
+          this.heroOffsetX = 0;
+
+          // Parallax clouds (drawn behind everything)
+          this.cloudLayers = [];
+          // Fewer and smaller clouds per layer
+          this.addCloudLayer(2, 0.2, 0.28, [0.30, 0.45]);
+          this.addCloudLayer(3, 0.45, 0.40, [0.28, 0.42]);
+          this.addCloudLayer(3, 0.75, 0.55, [0.25, 0.38]);
+
+          this.platformGroup = this.physics.add.group();
+
+          for (let i = 0; i < 5; i++) {
+            this.addPlatform(i === 0);
+          }
+
+          // UI: score and star
+          this.score = 0;
+          
+          // Load high score from localStorage
+          this.highScore = parseInt(localStorage.getItem('highScore') || '0', 10);
+          
+          const centerX = this.game.config.width / 2;
+          const scoreY = 90;
+          
+          // Create speech bubble badge for high score (with crown icon)
+          const bubbleWidth = 140;
+          const bubbleHeight = 50;
+          const bubbleX = centerX;
+          const bubbleY = scoreY - 20;
+          
+          // Speech bubble background
+          this.bubbleBg = this.add.graphics();
+          this.bubbleBg.fillStyle(0xffffff, 1);
+          // Main rounded rectangle
+          this.bubbleBg.fillRoundedRect(
+            bubbleX - bubbleWidth / 2,
+            bubbleY - bubbleHeight / 2,
+            bubbleWidth,
+            bubbleHeight,
+            12
+          );
+          // Tail pointing down (triangle)
+          this.bubbleBg.fillTriangle(
+            bubbleX - 12, bubbleY + bubbleHeight / 2,
+            bubbleX + 12, bubbleY + bubbleHeight / 2,
+            bubbleX, bubbleY + bubbleHeight / 2 + 10
+          );
+          this.bubbleBg.setScrollFactor(0);
+          this.bubbleBg.setDepth(1000);
+          
+          // Crown icon using asset
+          this.crown = this.add.image(centerX - 40, bubbleY, "crown");
+          this.crown.setScrollFactor(0);
+          this.crown.setDepth(1001);
+          this.crown.setScale(0.08);
+          
+          // High score text in speech bubble
+          this.highScoreText = this.add.text(bubbleX + 25, bubbleY, String(this.highScore), {
+            fontFamily: "'Baloo 2', Arial, Helvetica, sans-serif",
+            fontSize: "36px",
+            color: "#1773ff",
+            fontWeight: "bold",
+          });
+          this.highScoreText.setOrigin(0, 0.5);
+          this.highScoreText.setScrollFactor(0);
+          this.highScoreText.setDepth(1001);
+          
+          // Current score display (large numbers, no background)
+          this.scoreText = this.add.text(centerX, scoreY, "00", {
+            fontFamily: "'Baloo 2', Arial, Helvetica, sans-serif",
+            fontSize: "120px",
+            color: "#ffffff",
+            stroke: "#1773ff",
+            strokeThickness: 12,
+          });
+          this.scoreText.setOrigin(0.5, 0);
+          this.scoreText.setScrollFactor(0);
+          this.scoreText.setDepth(1001);
+
+          // Combo popup above hero on successful landing
+          this.comboCount = 0;
+          this.comboText = this.add.text(0, 0, "", {
+            fontFamily: "'Baloo 2', Arial, Helvetica, sans-serif",
+            fontSize: "56px",
+            color: "#ffffff",
+            stroke: "#1773ff",
+            strokeThickness: 8,
+          })
+            .setOrigin(0.5, 1)
+            .setDepth(1000)
+            .setAlpha(0);
+
+          // Top-right star icon and count
+          this.starIcon = this.add.image(this.game.config.width - 30, 30, "star")
+            .setOrigin(1, 0)
+            .setScrollFactor(0)
+            .setDepth(1000)
+            .setScale(gameOptions.starIconScale);
+          
+          // Load star count from localStorage
+          this.starCount = parseInt(localStorage.getItem('starCount') || '0', 10);
+          
+          this.starCountText = this.add.text(this.starIcon.x - this.starIcon.displayWidth - 8, 20, String(this.starCount), {
+            fontFamily: "'Baloo 2', Arial, Helvetica, sans-serif",
+            fontSize: "48px",
+            color: "#ffd54f",
+            stroke: "#ffb300",
+            strokeThickness: 6,
+          })
+            .setOrigin(1, 0)
+            .setScrollFactor(0)
+            .setDepth(1000);
+
+          // Top-left mushroom slots (3 slots that fill up when collected)
+          this.mushroomSlots = [];
+          const slotSize = 0.10; // Smaller size for mushroom slots
+          const slotSpacing = 60; // Spacing between slots
+          const slotStartX = 30; // Left side of screen
+          const slotY = 30; // Same height as star
+          
+          for (let i = 0; i < 3; i++) {
+            const slot = this.add.image(slotStartX + i * slotSpacing, slotY, "mushroom")
+              .setOrigin(0, 0)
+              .setScrollFactor(0)
+              .setDepth(1000)
+              .setScale(slotSize)
+              .setAlpha(0.3); // Start with low opacity (empty slot)
+            this.mushroomSlots.push(slot);
+          }
+          
+          this.mushroomCount = 0; // Current mushrooms collected (resets when power-up activates)
+          this.isPoweredUp = false; // Track if power-up is active
+          
+          // Power-up countdown timer (shown below mushroom slots when active)
+          const timerX = slotStartX + 90; // Center below the 3 slots
+          const timerY = slotY + 90; // Below the slots
+          const timerRadius = 35;
+          
+          // Circular progress background
+          this.timerBackground = this.add.graphics();
+          this.timerBackground.setScrollFactor(0);
+          this.timerBackground.setDepth(999);
+          this.timerBackground.setVisible(false);
+          
+          // Circular progress bar
+          this.timerProgress = this.add.graphics();
+          this.timerProgress.setScrollFactor(0);
+          this.timerProgress.setDepth(1000);
+          this.timerProgress.setVisible(false);
+          
+          // Mushroom icon in center of timer
+          this.timerIcon = this.add.image(timerX, timerY, "mushroom")
+            .setOrigin(0.5, 0.5)
+            .setScrollFactor(0)
+            .setDepth(1001)
+            .setScale(0.10)
+            .setVisible(false);
+          
+          // Countdown text
+          this.timerText = this.add.text(timerX, timerY + timerRadius + 10, "10", {
+            fontFamily: "'Baloo 2', Arial, Helvetica, sans-serif",
+            fontSize: "28px",
+            color: "#ffffff",
+            stroke: "#ff1493",
+            strokeThickness: 4,
+          })
+            .setOrigin(0.5, 0)
+            .setScrollFactor(0)
+            .setDepth(1001)
+            .setVisible(false);
+          
+          this.powerUpEndTime = 0; // Track when power-up ends
+          this.timerX = timerX;
+          this.timerY = timerY;
+          this.timerRadius = timerRadius;
+
+          // Hero: use selected skin from localStorage
+          const selectedSkin = localStorage.getItem('selectedSkin') || 'main';
+          const heroKey = this.textures.exists(selectedSkin) ? selectedSkin : "hero_fallback";
+          if (!this.textures.exists(selectedSkin)) {
+            console.warn("⚠️ Assets failed to load! Please run via web server:");
+            console.warn("   http://localhost:8080/index.html");
+          }
+          this.hero = this.physics.add.sprite(this.game.config.width / 2, 0, heroKey);
+          this.hero.setFrictionX(1);
+          this.hero.setBounce(0);
+          this.hero.setCollideWorldBounds(false);
+          this.hero.setDisplaySize(64, 64);
+          if (this.hero.body) {
+            this.hero.body.setSize(48, 48, true);
+          }
+
+          // Do not drop before first tap (already set above)
+          this.hero.body.setAllowGravity(false);
+
+          // Rainbow trail effect
+          this.trailGraphics = this.add.graphics();
+          this.trailGraphics.setScrollFactor(1); // Follow camera (world space)
+          this.trailGraphics.setDepth(50);
+          this.trailHistory = []; // Store recent hero positions for trail
+
+          // Debug graphics for hero body
+          this.debugGraphics = this.add.graphics();
+          this.debugGraphics.setScrollFactor(1);
+          this.debugGraphics.setDepth(2000);
+
+          this.canDestroy = false;
+          this.greenPlatform = null; // Current floor (green)
+          this.yellowPlatform = null; // Target platform (yellow)
+
+          // Set initial hero position on first platform (sit exactly on top)
+          const firstPlatform = this.platformGroup.getChildren()[0];
+          if (firstPlatform) {
+            // Calculate: platform top edge - hero half height = hero center position
+            // firstPlatform.y is the center of the platform
+            // gameOptions.platformHeight / 2 is half the platform height (top edge offset)
+            // this.hero.displayHeight / 2 is half the hero's height
+            this.hero.y = firstPlatform.y - (gameOptions.platformHeight / 2) - (this.hero.displayHeight / 2);
+            this.hero.x = firstPlatform.x;
+            this.heroOffsetX = 0; // Start centered on first platform
+            firstPlatform.isHeroOnIt = true;
+          }
+
+          this.paintSafePlatforms();
+
+          this.cameras.main.startFollow(
+            this.hero,
+            true,
+            0,
+            0.5,
+            0,
+            -(
+              this.game.config.height / 2 -
+              this.game.config.height * gameOptions.firstPlatformPosition
+            )
+          );
+
+          this.input.on("pointerdown", () => {
+            if (this.isGameOver) return;
+            // enable gravity on the first tap
+            if (!this.started) {
+              this.started = true;
+              if (this.hero.body) {
+                this.hero.body.moves = true;
+                this.hero.body.setAllowGravity(true);
+              }
+              // Resume audio context on first interaction (browser autoplay policy)
+              if (this.sound.context && this.sound.context.state === 'suspended') {
+                this.sound.context.resume();
+              }
+            }
+            this.destroyPlatform();
+          });
+        }
+
+        addPlatform(isFirstPlatform) {
+          const yPos = isFirstPlatform
+            ? this.game.config.height * gameOptions.firstPlatformPosition
+            : 0;
+          const platform = this.platformGroup.create(
+            this.game.config.width / 2,
+            yPos,
+            "platformb" // default white appearance
+          );
+
+          platform.isHeroOnIt = false;
+          platform.setImmovable(true);
+          platform.body.setAllowGravity(false);
+          platform.setFrictionX(1);
+          platform.setBounce(0);
+          platform.clearTint(); // Start white (no tint)
+          platform.displayHeight = gameOptions.platformHeight;
+          platform.displayWidth = this.choosePlatformLength();
+
+          if (!isFirstPlatform) {
+            this.positionPlatform(platform);
+          }
+
+          platform.assignedVelocityX = isFirstPlatform
+            ? 0
+            : this.randomValue(gameOptions.platformHorizontalSpeedRange) *
+              Phaser.Math.RND.sign();
+        }
+
+        paintSafePlatforms() {
+          // Reset all platforms to white look and clear tint
+          const platforms = this.platformGroup.getChildren();
+          platforms.forEach((p) => { p.clearTint(); p.setTexture("platformb"); });
+
+          // Prefer the platform explicitly marked as current floor
+          let greenPlatform = platforms.find((p) => p.isHeroOnIt) || null;
+
+          // If we lost the flag but still have a previous green, keep it
+          if (!greenPlatform && this.greenPlatform && platforms.includes(this.greenPlatform)) {
+            greenPlatform = this.greenPlatform;
+          }
+
+          // As a last resort (e.g., very first frame), pick the highest platform
+          if (!greenPlatform) {
+            greenPlatform = this.getHighestPlatform(0);
+          }
+
+          // Set green platform (destroyable floor)
+          this.greenPlatform = greenPlatform || null;
+          if (this.greenPlatform) {
+            this.greenPlatform.setTexture("platforma");
+            this.greenPlatform.setTint(0x00ff00);
+          }
+
+          // Exactly one yellow: the next platform below the green one
+          const nextBelow = this.greenPlatform ? this.getHighestPlatform(this.greenPlatform.y) : null;
+          this.yellowPlatform = nextBelow && nextBelow !== this.greenPlatform ? nextBelow : null;
+          if (this.yellowPlatform) {
+            this.yellowPlatform.setTexture("platforma");
+            this.yellowPlatform.setTint(0xffff00);
+          }
+
+          // Decide whether to spawn mushroom or star (mutually exclusive)
+          // First check if mushroom should spawn (35% chance), otherwise spawn star (50% chance)
+          const shouldSpawnMushroom = Math.random() < gameOptions.mushroomAppearanceRate && !this.isPoweredUp;
+          
+          if (shouldSpawnMushroom) {
+            // Spawn mushroom, hide star
+            this.ensureMushroomOnYellow(true);
+            this.ensureStarOnYellow(false);
+          } else {
+            // Spawn star (50% chance), hide mushroom
+            this.ensureStarOnYellow(true);
+            this.ensureMushroomOnYellow(false);
+          }
+        }
+
+        handleCollision = (hero, platform) => {
+          if (platform.isHeroOnIt) return;
+
+          // Only yellow platform (target) can be landed on
+          if (!this.yellowPlatform || platform !== this.yellowPlatform) {
+            this.gameOver();
+            return;
+          }
+
+          const bounds = platform.getBounds();
+          // Get hero's collision box bounds (accounting for power-up size)
+          const heroBodyWidth = hero.body ? hero.body.width : hero.displayWidth;
+          const heroLeft = hero.x - heroBodyWidth / 2;
+          const heroRight = hero.x + heroBodyWidth / 2;
+          
+          // Calculate overlap between hero and platform
+          const overlapLeft = Math.max(heroLeft, bounds.left);
+          const overlapRight = Math.min(heroRight, bounds.right);
+          const overlapWidth = Math.max(0, overlapRight - overlapLeft);
+          
+          // For powered-up (big) hero, ANY horizontal touch with the yellow platform counts
+          // This prevents unfair edge deaths when large.
+          if (!this.isPoweredUp) {
+            // For normal size, still require a tiny overlap so complete misses fail
+            const minOverlap = Math.min(heroBodyWidth * 0.1, 10);
+            if (overlapWidth < minOverlap) {
+              // Not enough overlap - determine which side slipped off
+              if (hero.x < platform.x) {
+                // Slipped off left side
+                hero.setVelocityY(-200);
+                hero.setVelocityX(-200);
+                hero.angle = -45;
+              } else {
+                // Slipped off right side
+                hero.setVelocityY(-200);
+                hero.setVelocityX(200);
+                hero.angle = 45;
+              }
+              this.gameOver(); // Edge slip causes game over
+              return;
+            }
+          }
+
+          // Successful landing on yellow platform
+          hero.angle = 0;
+          // Sit exactly on top of the platform where it landed (no horizontal snap, no bounce)
+          if (hero.body) {
+            hero.body.setVelocity(0, 0);
+            hero.body.setAcceleration(0, 0);
+            hero.body.setAllowGravity(false);
+            hero.body.moves = false; // freeze in place until next tap
+          }
+          hero.y = platform.y - (gameOptions.platformHeight / 2) - (hero.displayHeight / 2);
+          // Store the relative x position to maintain landing position (don't center)
+          this.heroOffsetX = hero.x - platform.x;
+          
+          // Clear rainbow trail on landing
+          if (this.trailGraphics) {
+            this.trailGraphics.clear();
+          }
+          this.trailHistory = [];
+          // Ensure only one platform is marked as current floor
+          this.platformGroup.getChildren().forEach((p) => (p.isHeroOnIt = false));
+          platform.isHeroOnIt = true;
+          this.stickPlatform = platform; // follow this platform while landed
+          
+          // Collect star if present on this platform
+          if (this.star && this.star.active && this.star.visible) {
+            this.collectStar(hero, this.star);
+          }
+          
+          // Collect mushroom if present on this platform
+          if (this.mushroom && this.mushroom.active && this.mushroom.visible) {
+            this.collectMushroom(hero, this.mushroom);
+          }
+          
+          // Increase combo and show popup; award bonus every 5 combos
+          this.comboCount = (this.comboCount || 0) + 1;
+          this.showComboPopup();
+          if (this.comboCount % 5 === 0) {
+            this.updateScore(5);
+          }
+
+          this.paintSafePlatforms();
+          this.started = false;
+        };
+
+        gameOver() {
+          if (this.isGameOver) return;
+          this.isGameOver = true;
+          
+          // Update high score if current score is higher
+          if (this.score > this.highScore) {
+            this.highScore = this.score;
+            localStorage.setItem('highScore', String(this.highScore));
+          }
+          
+          // Stop camera from following
+          this.cameras.main.stopFollow();
+          this.cameras.main.setScroll(0, 0);
+          
+          // Stop all physics and movement
+          if (this.hero && this.hero.body) {
+            this.hero.body.setVelocity(0, 0);
+            this.hero.body.setAllowGravity(false);
+            this.hero.body.moves = false;
+          }
+          
+          // Hide/clear all game objects except clouds
+          // Hide hero
+          if (this.hero) {
+            this.hero.setVisible(false);
+          }
+          
+          // Hide all platforms
+          this.platformGroup.getChildren().forEach((platform) => {
+            platform.setVisible(false);
+            if (platform.body) {
+              platform.body.setVelocity(0, 0);
+              platform.body.moves = false;
+            }
+          });
+          
+          // Hide star and mushroom if they exist
+          if (this.star) {
+            this.star.setVisible(false);
+          }
+          if (this.mushroom) {
+            this.mushroom.setVisible(false);
+          }
+          
+          // Clear trail
+          if (this.trailGraphics) {
+            this.trailGraphics.clear();
+          }
+          
+          // Screen shake effect to indicate death
+          this.cameras.main.shake(200, 0.01);
+          
+          // Move existing score displays to center
+          const centerX = this.game.config.width / 2;
+          const centerY = this.game.config.height / 2;
+          
+          // Update high score text if it changed
+          if (this.highScoreText) {
+            this.highScoreText.setText(String(this.highScore));
+          }
+          
+          // Move score text to center
+          if (this.scoreText) {
+            this.scoreText.setText(String(this.score).padStart(2, '0'));
+            this.scoreText.x = centerX;
+            this.scoreText.y = centerY - 150;
+            this.scoreText.setDepth(2001);
+          }
+          
+          // Move high score bubble and crown to center (below score)
+          if (this.bubbleBg && this.highScoreText && this.crown) {
+            const bubbleWidth = 150;
+            const bubbleHeight = 50;
+            const bubbleY = centerY + 20;
+            const bubbleX = centerX;
+            
+            // Clear and redraw bubble at new position
+            this.bubbleBg.clear();
+            this.bubbleBg.fillStyle(0xffffff, 1);
+            this.bubbleBg.fillRoundedRect(
+              bubbleX - bubbleWidth / 2,
+              bubbleY - bubbleHeight / 2,
+              bubbleWidth,
+              bubbleHeight,
+              12
+            );
+            this.bubbleBg.fillTriangle(
+              bubbleX - 12, bubbleY + bubbleHeight / 2,
+              bubbleX + 12, bubbleY + bubbleHeight / 2,
+              bubbleX, bubbleY + bubbleHeight / 2 + 10
+            );
+            this.bubbleBg.setDepth(2001);
+            
+            // Move crown
+            this.crown.x = bubbleX - 40;
+            this.crown.y = bubbleY;
+            this.crown.setDepth(2002);
+            
+            // Move high score text
+            this.highScoreText.x = bubbleX + 25;
+            this.highScoreText.y = bubbleY;
+            this.highScoreText.setDepth(2002);
+          }
+          
+          // Buttons (stacked vertically)
+          const buttonWidth = 200;
+          const buttonHeight = 70;
+          const buttonSpacing = 20;
+          const buttonRadius = 15;
+          
+          // Restart button (green) - top button
+          const restartY = centerY + 150;
+          const restartButtonBg = this.add.graphics();
+          const restartButton = this.add.graphics();
+          
+          restartButtonBg.fillStyle(0x2e7d32, 1);
+          restartButtonBg.fillRoundedRect(centerX - buttonWidth / 2 + 4, restartY - buttonHeight / 2 + 4, buttonWidth, buttonHeight, buttonRadius);
+          
+          restartButton.fillStyle(0x81c784, 1);
+          restartButton.fillRoundedRect(centerX - buttonWidth / 2, restartY - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
+          restartButton.lineStyle(4, 0x2e7d32, 1);
+          restartButton.strokeRoundedRect(centerX - buttonWidth / 2, restartY - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
+          
+          restartButtonBg.setScrollFactor(0);
+          restartButtonBg.setDepth(2001);
+          restartButton.setScrollFactor(0);
+          restartButton.setDepth(2002);
+          
+          const restartText = this.add.text(centerX, restartY, "RESTART", {
+            fontFamily: "'Baloo 2', cursive",
+            fontSize: "36px",
+            fontWeight: "bold",
+            color: "#ffffff",
+          }).setOrigin(0.5);
+          restartText.setScrollFactor(0);
+          restartText.setDepth(2003);
+          
+          const restartZone = this.add.zone(centerX, restartY, buttonWidth, buttonHeight)
+            .setInteractive({ useHandCursor: true })
+            .setScrollFactor(0)
+            .setDepth(2004);
+          
+          restartZone.on('pointerdown', () => {
+            this.scene.start("PlayGame");
+          });
+          
+          // Home button (orange) - below restart button
+          const homeY = restartY + buttonHeight + buttonSpacing;
+          const homeButtonBg = this.add.graphics();
+          const homeButton = this.add.graphics();
+          
+          homeButtonBg.fillStyle(0xbf360c, 1);
+          homeButtonBg.fillRoundedRect(centerX - buttonWidth / 2 + 4, homeY - buttonHeight / 2 + 4, buttonWidth, buttonHeight, buttonRadius);
+          
+          homeButton.fillStyle(0xffb74d, 1);
+          homeButton.fillRoundedRect(centerX - buttonWidth / 2, homeY - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
+          homeButton.lineStyle(4, 0xbf360c, 1);
+          homeButton.strokeRoundedRect(centerX - buttonWidth / 2, homeY - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
+          
+          homeButtonBg.setScrollFactor(0);
+          homeButtonBg.setDepth(2001);
+          homeButton.setScrollFactor(0);
+          homeButton.setDepth(2002);
+          
+          const homeText = this.add.text(centerX, homeY, "HOME", {
+            fontFamily: "'Baloo 2', cursive",
+            fontSize: "36px",
+            fontWeight: "bold",
+            color: "#ffffff",
+          }).setOrigin(0.5);
+          homeText.setScrollFactor(0);
+          homeText.setDepth(2003);
+          
+          const homeZone = this.add.zone(centerX, homeY, buttonWidth, buttonHeight)
+            .setInteractive({ useHandCursor: true })
+            .setScrollFactor(0)
+            .setDepth(2004);
+          
+          homeZone.on('pointerdown', () => {
+            this.scene.start("HomeScene");
+          });
+        }
+
+        randomValue(range) {
+          return Phaser.Math.Between(range[0], range[1]);
+        }
+
+        // Prefer medium-to-long platforms; short is rare
+        choosePlatformLength() {
+          const w = this.game.config.width;
+          const margin = 40;
+          const maxLen = Math.floor(w - margin * 2);
+          const roll = Math.random();
+          if (roll < 0.05) {
+            // short (5%)
+            return Phaser.Math.Between(100, 160);
+          } else if (roll < 0.30) {
+            // average (25%)
+            return Phaser.Math.Between(160, 220);
+          }
+          // medium-to-long (70%)
+          return Phaser.Math.Between(220, Math.max(260, Math.min(360, maxLen)));
+        }
+
+        destroyPlatform() {
+          if (!this.greenPlatform) return;
+
+          // Prepare hero to fall again
+          if (this.hero && this.hero.body) {
+            this.hero.body.moves = true;
+            this.hero.body.setAllowGravity(true);
+            this.started = true;
+          }
+          this.stickPlatform = null;
+
+          // Destroy the green platform (current floor)
+          const greenPlatform = this.greenPlatform;
+          greenPlatform.isHeroOnIt = false;
+
+          // Find the lowest platform (furthest down) to position new platform below it
+          let lowestPlatform = null;
+          let lowestY = -Infinity;
+          this.platformGroup.getChildren().forEach((platform) => {
+            if (platform !== greenPlatform && platform.y > lowestY) {
+              lowestY = platform.y;
+              lowestPlatform = platform;
+            }
+          });
+
+          // Calculate new position: below the lowest platform
+          const targetY = lowestY + this.randomValue(gameOptions.platformVerticalDistanceRange);
+          const targetVX = this.randomValue(gameOptions.platformHorizontalSpeedRange) * Phaser.Math.RND.sign();
+          const targetWidth = this.choosePlatformLength();
+          
+          // Immediately move platform out of the way so hero can fall through
+          greenPlatform.y = targetY;
+          greenPlatform.assignedVelocityX = targetVX;
+          greenPlatform.x = this.game.config.width / 2;
+          greenPlatform.displayHeight = gameOptions.platformHeight;
+          greenPlatform.displayWidth = targetWidth;
+          greenPlatform.setTexture("platformb");
+          greenPlatform.clearTint();
+          
+          // Play pop sound effect (always on)
+          try {
+            if (this.sound && this.cache.audio.exists('popSound')) {
+              this.sound.play('popSound', { volume: 0.5 });
+            }
+          } catch (e) {
+            console.warn('Could not play sound:', e);
+          }
+
+          // Bubble pop effect at the OLD position (visual only)
+          const popX = greenPlatform.x;
+          const popY = this.hero.y + this.hero.displayHeight / 2 + gameOptions.platformHeight / 2;
+          
+          // Main bubble expanding effect
+          const bubble = this.add.graphics();
+          bubble.lineStyle(8, 0x00ff00, 1);
+          bubble.strokeCircle(0, 0, 40);
+          bubble.x = popX;
+          bubble.y = popY;
+          bubble.setDepth(100);
+          
+          this.tweens.add({
+            targets: bubble,
+            scaleX: 2.5,
+            scaleY: 2.5,
+            alpha: 0,
+            duration: 300,
+            ease: 'Cubic.easeOut',
+            onComplete: () => {
+              bubble.destroy();
+            }
+          });
+          
+          // Create particle burst effect
+          for (let i = 0; i < 12; i++) {
+            const angle = (i / 12) * Math.PI * 2;
+            const particle = this.add.graphics();
+            const particleSize = Phaser.Math.Between(4, 8);
+            particle.fillStyle(0x00ff00, 1);
+            particle.fillCircle(0, 0, particleSize);
+            particle.x = popX;
+            particle.y = popY;
+            particle.setDepth(101);
+            
+            const distance = Phaser.Math.Between(40, 80);
+            const targetX = popX + Math.cos(angle) * distance;
+            const targetY = popY + Math.sin(angle) * distance;
+            
+            this.tweens.add({
+              targets: particle,
+              x: targetX,
+              y: targetY,
+              alpha: 0,
+              scaleX: 0.2,
+              scaleY: 0.2,
+              duration: Phaser.Math.Between(250, 400),
+              ease: 'Cubic.easeOut',
+              onComplete: () => {
+                particle.destroy();
+              }
+            });
+          }
+          
+          // Inner flash effect
+          const flash = this.add.graphics();
+          flash.fillStyle(0xffffff, 0.8);
+          flash.fillCircle(0, 0, 30);
+          flash.x = popX;
+          flash.y = popY;
+          flash.setDepth(102);
+          
+          this.tweens.add({
+            targets: flash,
+            scaleX: 1.8,
+            scaleY: 1.8,
+            alpha: 0,
+            duration: 200,
+            ease: 'Quad.easeOut',
+            onComplete: () => {
+              flash.destroy();
+            }
+          });
+
+          // After destroying, there is no current floor until landing
+          this.greenPlatform = null;
+
+          // Increase score for one platform drop
+          this.updateScore(1);
+        }
+
+        getLowestPlatform() {
+          let lowest = null;
+          this.platformGroup.getChildren().forEach(function (platform) {
+            lowest = Math.max(lowest, platform.y);
+          });
+          return lowest === null ? 0 : lowest;
+        }
+
+        getHighestPlatform(maxHeight) {
+          let highestPlatform = null;
+          this.platformGroup.getChildren().forEach(function (platform) {
+            if (platform.y > maxHeight && (!highestPlatform || platform.y < highestPlatform.y)) {
+              highestPlatform = platform;
+            }
+          });
+          return highestPlatform;
+        }
+
+        positionPlatform(platform) {
+          platform.y =
+            this.getLowestPlatform() +
+            this.randomValue(gameOptions.platformVerticalDistanceRange);
+          platform.x = this.game.config.width / 2;
+          platform.displayHeight = gameOptions.platformHeight;
+          platform.displayWidth = this.choosePlatformLength();
+        }
+
+        // Create or move a collectible star to sit on the current yellow platform (random chance)
+        ensureStarOnYellow() {
+          if (!this.yellowPlatform) {
+            if (this.star) this.star.setVisible(false);
+            return;
+          }
+          
+          // Random chance to show star (50% probability)
+          const shouldShowStar = Math.random() < 0.5;
+          
+          if (!shouldShowStar) {
+            if (this.star) this.star.setVisible(false);
+            return;
+          }
+          
+          // Create star if it doesn't exist or was destroyed
+          if (!this.star || !this.star.body) {
+            // Destroy old star if it exists without body
+            if (this.star) {
+              this.star.destroy();
+            }
+            this.star = this.physics.add.sprite(0, 0, "star");
+            this.star.setDepth(20);
+            this.star.setScale(gameOptions.collectibleStarScale);
+            this.star.body.setAllowGravity(false);
+            this.star.setImmovable(true);
+            this.physics.add.overlap(this.hero, this.star, this.collectStar, null, this);
+          }
+          
+          // Re-enable star body in case it was collected previously
+          if (!this.star.active) {
+            this.star.enableBody(true, this.yellowPlatform.x, this.yellowPlatform.y, true, true);
+            if (this.star.body) {
+              this.star.body.setAllowGravity(false);
+            }
+          }
+          
+          this.star.setVisible(true);
+          this.star.x = this.yellowPlatform.x;
+          const platformTop = this.yellowPlatform.y - (this.yellowPlatform.displayHeight ? this.yellowPlatform.displayHeight / 2 : 20);
+          const starHalf = this.star.displayHeight ? this.star.displayHeight / 2 : 24;
+          this.star.y = platformTop - starHalf - 6;
+        }
+
+        // Create or move a collectible mushroom to sit on the current yellow platform (20% chance)
+        ensureMushroomOnYellow() {
+          if (!this.yellowPlatform || this.isPoweredUp) {
+            if (this.mushroom) this.mushroom.setVisible(false);
+            return;
+          }
+          
+          // Random chance to show mushroom (20% probability)
+          const shouldShowMushroom = Math.random() < gameOptions.mushroomAppearanceRate;
+          
+          if (!shouldShowMushroom) {
+            if (this.mushroom) this.mushroom.setVisible(false);
+            return;
+          }
+          
+          // Create mushroom if it doesn't exist or was destroyed
+          if (!this.mushroom || !this.mushroom.body) {
+            // Destroy old mushroom if it exists without body
+            if (this.mushroom) {
+              this.mushroom.destroy();
+            }
+            this.mushroom = this.physics.add.sprite(0, 0, "mushroom");
+            this.mushroom.setDepth(20);
+            this.mushroom.setScale(gameOptions.mushroomScale);
+            this.mushroom.body.setAllowGravity(false);
+            this.mushroom.setImmovable(true);
+            this.physics.add.overlap(this.hero, this.mushroom, this.collectMushroom, null, this);
+          }
+          
+          // Re-enable mushroom body in case it was collected previously
+          if (!this.mushroom.active) {
+            this.mushroom.enableBody(true, this.yellowPlatform.x, this.yellowPlatform.y, true, true);
+            if (this.mushroom.body) {
+              this.mushroom.body.setAllowGravity(false);
+            }
+          }
+          
+          this.mushroom.setVisible(true);
+          // Offset mushroom to the side of the platform to avoid overlapping with star
+          this.mushroom.x = this.yellowPlatform.x + 40;
+          const platformTop = this.yellowPlatform.y - (this.yellowPlatform.displayHeight ? this.yellowPlatform.displayHeight / 2 : 20);
+          const mushroomHalf = this.mushroom.displayHeight ? this.mushroom.displayHeight / 2 : 24;
+          this.mushroom.y = platformTop - mushroomHalf - 6;
+        }
+
+        collectStar(hero, star) {
+          if (!star || !star.active) return;
+          star.disableBody(true, true);
+          this.starCount = (this.starCount || 0) + 1;
+          if (this.starCountText) this.starCountText.setText(String(this.starCount));
+          
+          // Save star count to localStorage
+          localStorage.setItem('starCount', String(this.starCount));
+          
+          // Play collect star sound effect (always on)
+          try {
+            if (this.sound && this.cache.audio.exists('collectStarSound')) {
+              this.sound.play('collectStarSound', { volume: 0.5 });
+            }
+          } catch (e) {
+            console.warn('Could not play collect star sound:', e);
+          }
+        }
+
+        collectMushroom(hero, mushroom) {
+          if (!mushroom || !mushroom.active) return;
+          mushroom.disableBody(true, true);
+          this.mushroomCount = (this.mushroomCount || 0) + 1;
+          
+          // Fill up the mushroom slots visually
+          if (this.mushroomSlots && this.mushroomCount <= 3) {
+            const slotIndex = this.mushroomCount - 1;
+            if (this.mushroomSlots[slotIndex]) {
+              // Fill the slot with full opacity
+              this.mushroomSlots[slotIndex].setAlpha(1);
+              
+              // Pop animation for the slot
+              this.tweens.add({
+                targets: this.mushroomSlots[slotIndex],
+                scaleX: this.mushroomSlots[slotIndex].scale * 1.5,
+                scaleY: this.mushroomSlots[slotIndex].scale * 1.5,
+                duration: 150,
+                ease: 'Back.easeOut',
+                yoyo: true
+              });
+            }
+          }
+          
+          // Activate power-up when 3 mushrooms collected
+          if (this.mushroomCount >= 3) {
+            this.activatePowerUp();
+          }
+        }
+
+        activatePowerUp() {
+          if (this.isPoweredUp) return; // Already powered up
+          
+          this.isPoweredUp = true;
+          this.mushroomCount = 0; // Reset mushroom count
+          
+          // Reset all mushroom slots to empty (low alpha)
+          if (this.mushroomSlots) {
+            this.mushroomSlots.forEach(slot => {
+              slot.setAlpha(0.3);
+            });
+          }
+          
+          // Show countdown timer
+          this.powerUpEndTime = this.time.now + gameOptions.powerUpDuration;
+          if (this.timerBackground) this.timerBackground.setVisible(true);
+          if (this.timerProgress) this.timerProgress.setVisible(true);
+          if (this.timerIcon) this.timerIcon.setVisible(true);
+          if (this.timerText) this.timerText.setVisible(true);
+          
+          // Play rising sound effect (always on)
+          try {
+            if (this.sound && this.cache.audio.exists('risingSound')) {
+              this.sound.play('risingSound', { volume: 0.6 });
+            }
+          } catch (e) {
+            console.warn('Could not play rising sound:', e);
+          }
+          
+          // Store original hero size
+          const originalWidth = this.hero.displayWidth;
+          const originalHeight = this.hero.displayHeight;
+          const targetWidth = originalWidth * gameOptions.powerUpSizeMultiplier;
+          const targetHeight = originalHeight * gameOptions.powerUpSizeMultiplier;
+          
+          // Visual effect - glow/tint the hero
+          this.hero.setTint(0xffff00);
+          
+          // Animate hero growing larger with bounce effect
+          this.tweens.add({
+            targets: this.hero,
+            displayWidth: targetWidth,
+            displayHeight: targetHeight,
+            duration: 400,
+            ease: 'Back.easeOut',
+            onUpdate: () => {
+              // Update physics body size as hero grows
+              if (this.hero.body) {
+                const currentScale = this.hero.displayWidth / originalWidth;
+                this.hero.body.setSize(
+                  48 * currentScale,
+                  48 * currentScale,
+                  true
+                );
+              }
+            },
+            onComplete: () => {
+              // Ensure final body size matches the 3x display size
+              if (this.hero.body) {
+                const finalBodySize = 48 * gameOptions.powerUpSizeMultiplier;
+                this.hero.body.setSize(finalBodySize, finalBodySize, true);
+              }
+            }
+          });
+          
+          // After 10 seconds, return to normal size
+          this.time.delayedCall(gameOptions.powerUpDuration, () => {
+            this.isPoweredUp = false;
+            
+            // Hide countdown timer
+            if (this.timerBackground) this.timerBackground.setVisible(false);
+            if (this.timerProgress) this.timerProgress.setVisible(false);
+            if (this.timerIcon) this.timerIcon.setVisible(false);
+            if (this.timerText) this.timerText.setVisible(false);
+            
+            // Animate hero shrinking back to normal size
+            this.tweens.add({
+              targets: this.hero,
+              displayWidth: originalWidth,
+              displayHeight: originalHeight,
+              duration: 300,
+              ease: 'Back.easeIn',
+              onUpdate: () => {
+                // Update physics body size as hero shrinks
+                if (this.hero.body) {
+                  const currentScale = this.hero.displayWidth / originalWidth;
+                  this.hero.body.setSize(
+                    48 * currentScale,
+                    48 * currentScale,
+                    true
+                  );
+                }
+              },
+              onComplete: () => {
+                // Ensure final size is exactly original
+                if (this.hero.body) {
+                  this.hero.body.setSize(48, 48, true);
+                }
+              }
+            });
+            
+            // Remove tint
+            this.hero.clearTint();
+          });
+        }
+
+        update() {
+          // Draw debug bounding box for hero
+          if (this.debugGraphics) {
+            this.debugGraphics.clear();
+            if (this.hero && this.hero.body && !this.isGameOver) {
+              // Draw red rectangle around physics body
+              this.debugGraphics.lineStyle(2, 0xff0000, 1);
+              // body.x/y are world coordinates of the top-left of the body
+              this.debugGraphics.strokeRect(
+                this.hero.body.x, 
+                this.hero.body.y, 
+                this.hero.body.width, 
+                this.hero.body.height
+              );
+              
+              // Draw yellow platform bounds if it exists
+              if (this.yellowPlatform) {
+                const bounds = this.yellowPlatform.getBounds();
+                this.debugGraphics.lineStyle(2, 0xffff00, 0.5);
+                this.debugGraphics.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+              }
+            }
+          }
+
+          if (this.isGameOver) {
+            return;
+          }
+          if (this.hero && this.hero.body && this.hero.angle === 0) {
+            this.physics.world.collide(
+              this.hero,
+              this.platformGroup,
+              this.handleCollision,
+              null,
+              this
+            );
+          }
+
+          this.platformGroup.getChildren().forEach(
+            function (platform) {
+              // Easing based on distance from center
+              const distance =
+                Math.max(
+                  0.2,
+                  1 -
+                    Math.abs(this.game.config.width / 2 - platform.x) /
+                      (this.game.config.width / 2)
+                ) * (Math.PI / 2);
+
+              platform.setVelocityX(platform.assignedVelocityX * distance);
+
+              const leftLimit = this.hero.displayWidth / 2;
+              const rightLimit = this.game.config.width - this.hero.displayWidth / 2;
+              if (
+                (platform.body.velocity.x < 0 && platform.getBounds().left < leftLimit) ||
+                (platform.body.velocity.x > 0 && platform.getBounds().right > rightLimit)
+              ) {
+                platform.assignedVelocityX *= -1;
+              }
+              // If hero is sticking to this platform, follow its x and keep snapped to its top
+              if (this.stickPlatform === platform && this.hero) {
+                // Maintain the landing position relative to platform (don't auto-center)
+                this.hero.x = platform.x + (this.heroOffsetX || 0);
+                this.hero.y = platform.y - (gameOptions.platformHeight / 2) - (this.hero.displayHeight / 2);
+              }
+            },
+            this
+          );
+
+          // Keep the star anchored to the yellow platform if present
+          if (this.star && this.yellowPlatform && this.star.active) {
+            this.star.x = this.yellowPlatform.x;
+            const platformTop = this.yellowPlatform.y - (this.yellowPlatform.displayHeight ? this.yellowPlatform.displayHeight / 2 : 20);
+            const starHalf = this.star.displayHeight ? this.star.displayHeight / 2 : 24;
+            this.star.y = platformTop - starHalf - 6;
+          }
+          
+          // Keep the mushroom anchored to the yellow platform if present
+          if (this.mushroom && this.yellowPlatform && this.mushroom.active) {
+            this.mushroom.x = this.yellowPlatform.x + 40; // Offset to avoid overlap with star
+            const platformTop = this.yellowPlatform.y - (this.yellowPlatform.displayHeight ? this.yellowPlatform.displayHeight / 2 : 20);
+            const mushroomHalf = this.mushroom.displayHeight ? this.mushroom.displayHeight / 2 : 24;
+            this.mushroom.y = platformTop - mushroomHalf - 6;
+          }
+          
+          // Rainbow trail when falling
+          if (this.hero && this.hero.body && this.hero.body.allowGravity && this.hero.body.velocity.y > 0) {
+            this.drawRainbowTrail();
+          } else {
+            // Clear trail when not falling
+            if (this.trailGraphics) {
+              this.trailGraphics.clear();
+            }
+            this.trailHistory = [];
+          }
+          
+          // Check if hero fell too far below all platforms (proper game over condition)
+          if (this.hero && this.hero.body && this.hero.body.allowGravity) {
+            // Find the lowest platform (highest Y value, since Y increases downward)
+            let lowestPlatformY = null;
+            this.platformGroup.getChildren().forEach(function (platform) {
+              if (lowestPlatformY === null || platform.y > lowestPlatformY) {
+                lowestPlatformY = platform.y;
+              }
+            });
+            
+            // If hero falls more than 500 pixels below the lowest platform, game over
+            if (lowestPlatformY !== null && this.hero.y > lowestPlatformY + 500) {
+              this.gameOver();
+            }
+          }
+          
+          // Update power-up countdown timer
+          if (this.isPoweredUp && this.powerUpEndTime > 0) {
+            const timeRemaining = Math.max(0, this.powerUpEndTime - this.time.now);
+            const progress = timeRemaining / gameOptions.powerUpDuration;
+            const secondsLeft = Math.ceil(timeRemaining / 1000);
+            
+            // Update countdown text
+            if (this.timerText) {
+              this.timerText.setText(String(secondsLeft));
+            }
+            
+            // Draw circular progress bar
+            if (this.timerBackground && this.timerProgress) {
+              // Clear previous graphics
+              this.timerBackground.clear();
+              this.timerProgress.clear();
+              
+              const lineWidth = 8;
+              
+              // Draw full background circle (light gray)
+              this.timerBackground.lineStyle(lineWidth, 0xcccccc, 0.5);
+              this.timerBackground.beginPath();
+              this.timerBackground.arc(
+                this.timerX,
+                this.timerY,
+                this.timerRadius,
+                0,
+                Phaser.Math.DegToRad(360),
+                false
+              );
+              this.timerBackground.strokePath();
+              
+              // Draw progress arc (gradient from pink to orange based on time)
+              if (progress > 0) {
+                // Color changes as time runs out: pink -> orange -> red
+                let color = 0xff1493; // Pink
+                if (progress < 0.5) {
+                  color = 0xff8c00; // Orange
+                }
+                if (progress < 0.2) {
+                  color = 0xff0000; // Red
+                }
+                
+                this.timerProgress.lineStyle(lineWidth, color, 1);
+                this.timerProgress.beginPath();
+                this.timerProgress.arc(
+                  this.timerX,
+                  this.timerY,
+                  this.timerRadius,
+                  Phaser.Math.DegToRad(-90), // Start at top
+                  Phaser.Math.DegToRad(-90 + 360 * progress), // Progress clockwise
+                  false
+                );
+                this.timerProgress.strokePath();
+              }
+            }
+          }
+          
+          // Clouds stay static
+        }
+
+        // Draw rainbow trail effect when hero is falling
+        drawRainbowTrail() {
+          if (!this.hero || !this.trailGraphics) return;
+          
+          // Store current position in history
+          this.trailHistory.push({
+            x: this.hero.x,
+            y: this.hero.y,
+            time: this.time.now
+          });
+          
+          // Keep only recent positions (last 200ms)
+          const maxAge = 200;
+          this.trailHistory = this.trailHistory.filter(
+            point => this.time.now - point.time < maxAge
+          );
+          
+          // Clear previous trail
+          this.trailGraphics.clear();
+          
+          if (this.trailHistory.length < 2) return;
+          
+          // Draw colorful vertical beams
+          const colors = [0xff69b4, 0x00ffff, 0xffff00]; // Pink, Cyan, Yellow
+          const beamWidth = 18;
+          const spacing = 0;
+          
+          for (let i = 0; i < colors.length; i++) {
+            const offsetX = (i - 1) * (beamWidth + spacing);
+            this.trailGraphics.fillStyle(colors[i], 0.7);
+            
+            // Draw vertical beam from hero position upward
+            for (let j = 0; j < this.trailHistory.length - 1; j++) {
+              const current = this.trailHistory[j];
+              const next = this.trailHistory[j + 1];
+              
+              const x1 = current.x + offsetX - beamWidth / 2;
+              const y1 = current.y - this.hero.displayHeight / 2;
+              const x2 = next.x + offsetX - beamWidth / 2;
+              const y2 = next.y - this.hero.displayHeight / 2;
+              
+              // Draw rectangle for this segment
+              const height = Math.abs(y2 - y1);
+              const alpha = 1 - (j / this.trailHistory.length) * 0.5;
+              this.trailGraphics.fillStyle(colors[i], alpha);
+              this.trailGraphics.fillRect(
+                Math.min(x1, x2),
+                Math.min(y1, y2),
+                beamWidth,
+                height || 2
+              );
+            }
+          }
+        }
+
+        // Helper: update score and check/update high score
+        updateScore(points) {
+          this.score = (this.score || 0) + points;
+          if (this.scoreText) {
+            // Format score with at least 2 digits (00, 01, 02, ..., 10, 11, ...)
+            this.scoreText.setText(String(this.score).padStart(2, '0'));
+            
+            // Pop animation - make score bounce to feel lively
+            this.tweens.killTweensOf(this.scoreText);
+            this.scoreText.setScale(1);
+            this.tweens.add({
+              targets: this.scoreText,
+              scaleX: 1.3,
+              scaleY: 1.3,
+              duration: 150,
+              ease: 'Back.easeOut',
+              yoyo: true,
+              onComplete: () => {
+                this.scoreText.setScale(1);
+              }
+            });
+          }
+          
+          // Check if new high score
+          if (this.score > this.highScore) {
+            this.highScore = this.score;
+            localStorage.setItem('highScore', String(this.highScore));
+            if (this.highScoreText) {
+              this.highScoreText.setText(String(this.highScore));
+            }
+          }
+        }
+
+        // Helpers: create a parallax cloud layer behind the scene
+        addCloudLayer(count, scrollFactor, alpha, scaleRange) {
+          const group = this.add.group();
+          const placed = [];
+          const margin = 30;
+          for (let i = 0; i < count; i++) {
+            const scale = Phaser.Math.FloatBetween(scaleRange[0], scaleRange[1]);
+            const minDist = 140; // pixels, to avoid heavy overlap
+            let tries = 0;
+            let pos = null;
+            while (tries < 20) {
+              const x = Phaser.Math.Between(margin, this.game.config.width - margin);
+              const y = Phaser.Math.Between(margin, this.game.config.height - margin);
+              let ok = true;
+              for (const p of placed) {
+                const dx = x - p.x;
+                const dy = y - p.y;
+                if (dx * dx + dy * dy < (minDist * minDist)) { ok = false; break; }
+              }
+              if (ok) { pos = { x, y }; break; }
+              tries++;
+            }
+            if (!pos) pos = { x: Phaser.Math.Between(margin, this.game.config.width - margin), y: Phaser.Math.Between(margin, this.game.config.height - margin) };
+
+            const cloud = this.add.image(pos.x, pos.y, "cloud_img")
+              .setScale(scale)
+              .setAlpha(alpha)
+              .setScrollFactor(scrollFactor)
+              .setDepth(-100);
+            placed.push(pos);
+            group.add(cloud);
+          }
+          this.cloudLayers.push(group);
+        }
+
+        // Show a floating combo popup above the hero
+        showComboPopup() {
+          if (!this.comboText || !this.hero) return;
+          this.comboText.setText("x" + this.comboCount);
+          this.comboText.setPosition(this.hero.x, this.hero.y - this.hero.displayHeight / 2 - 6);
+          this.comboText.setAlpha(1);
+          // Kill any previous tween safely (avoids null errors)
+          this.tweens.killTweensOf(this.comboText);
+          this.comboTween = this.tweens.add({
+            targets: this.comboText,
+            y: this.comboText.y - 50,
+            alpha: 0,
+            duration: 650,
+            ease: 'Cubic.easeOut'
+          });
+        }
+      }
+    </script>
+  </body>
+  </html>
+
+
